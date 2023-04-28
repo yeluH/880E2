@@ -1,220 +1,177 @@
 ---
-title: "Exercise2"
-author: "yelu"
-date: '2022-05-06'
-output: github_document
+format:
+  html:
+    code-tools:
+      source: true
 ---
 
-```{r setup, echo = FALSE, warning=FALSE, message=FALSE}
+## Toolskit Demo
 
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+Download this Demoscript via "\</\>Code" (top right)
 
+Depending on your knowledge of `R`, getting an overview of the data we imported last week might have been quite a challenge. Surprisingly enough, importing, cleaning and exploring your data can be the most challenging, time consuming part of a project. RStudio and the tidyverse offer many helpful tools to make this part easier (and more fun). You have read chapters on `dplyr` and `magrittr` as a preparation for this exercise. Before we start with the exercise however, this demo illustrates a simple approach offered by tidyverse which is applicable to sf-objects.
+
+Assume we want to calculate the timelag between subsequent positions. To achieve this we can use the function `difftime()` combined with `lead()` from `dplyr`. Let's look at these functions one by one.
+
+### `difftime`
+
+`difftime` takes two `POSIXct` values.
+
+```{r}
+now <- Sys.time()
+
+later <- now + 10000
+
+later
+
+time_difference <- difftime(later, now)
+
+time_difference
 ```
 
-## R Markdown
+You can also specify the unit of the output.
 
-```{r library,echo = TRUE, warning = FALSE, message = FALSE}
-library(readr)        # to import tabular data (e.g. csv)
-library(dplyr)        # to manipulate (tabular) data
-library(ggplot2)      # to visualize data
-library(sf)           # to handle spatial vector data
-library(terra)        # To handle raster data
-library(lubridate)    # To handle dates and times
-```
-## Tasks2 Data Import
+```{r}
+time_difference <- difftime(later, now, units = "mins")
 
-```{r datainput,echo = TRUE, warning = FALSE, message = FALSE}
-## Import the downloaded csv 
-wildschwein_BE <- read_delim("wildschwein_BE_2056.csv",",") # adjust path
-wildschwein_BE <- st_as_sf(wildschwein_BE, coords = c("E", "N"), crs = 2056, remove = FALSE)
-```
-## Tasks3 Data Overview
-
-```{r overview,echo = TRUE, warning = FALSE, message = FALSE}
-## Calculate time difference
-wildschwein_BE$timelag  <- as.numeric(difftime(lead(wildschwein_BE$DatetimeUTC), wildschwein_BE$DatetimeUTC, units = "secs")) 
-wildschwein_BE$timelag_it <- as.integer(difftime(lead(wildschwein_BE$DatetimeUTC), wildschwein_BE$DatetimeUTC, units = "secs"))
-
-## How many individuals were tracked?
-## For how long were the individual tracked? Are there gaps?
-wildschwein_BE <- mutate(wildschwein_BE,timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)))
-wildschwein_BE %>%
-  group_by(TierID, TierName, CollarID) %>%
-  summarise(         
-    mean_timelag = mean(timelag, na.rm = T),
-    total_timelag = sum(timelag, na.rm = T)
-  )
-
-## Were all individuals tracked concurrently or sequentially?
-ggplot(wildschwein_BE,aes(DatetimeUTC,TierID,colour = TierID)) + geom_point()
-## Date-Timelag plot
-tl1 <- ggplot(wildschwein_BE,aes(DatetimeUTC,timelag,colour = TierID)) + geom_line()
-tl1 +ylim(0,20000) + scale_x_datetime()
-
-## ggplot(wildschwein_BE, aes(DatetimeUTC,colour = TierID)) + geom_histogram()
-
-## Histogram plot of timelag
-tl0 <- ggplot(wildschwein_BE, aes(x=timelag_it)) + geom_histogram()
-tl0 + xlim(0,6000) + ylim(0,1500)
-
-## Histogram of timelag for different objects
-tl2 <- ggplot(wildschwein_BE, aes(x=timelag, colour=TierID)) +
-  geom_histogram(fill="white",alpha=0.5, position="identity")
-tl2 + xlim(0,15000) + ylim(0,15000)
-## What is the temporal sampling interval between the locations?
-
-
+time_difference
 ```
 
-## Tasks3 Deriving movement parameter: Speed
+`difftime` returns an object of the Class `difftime`. However in our case, numeric values would be more handy than the Class `difftime`. So we'll wrap the command in `as.numeric()`:
+```{r}
+class(time_difference)
 
-```{r Speed,echo = TRUE, warning = FALSE, message = FALSE}
-wildschwein_BE <- wildschwein_BE %>%
-  mutate(Elag = as.numeric((E - lead(E))),
-         Nlag = as.numeric((N - lead(N))),
-         steplength = as.numeric(sqrt((Elag^2 + Nlag^2))),
-         speed = as.numeric((steplength/timelag))
-  )
-summary(wildschwein_BE$speed)
-
-speed0 <- ggplot(wildschwein_BE,aes(DatetimeUTC,speed,colour = TierID)) + geom_line()
-speed0 +ylim(0,1.5) + scale_x_datetime()
-
+str(time_difference)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+time_difference <- as.numeric(difftime(later, now, units = "mins"))
 
-## Tasks4 Cross-scale movement analysis
+str(time_difference)
+class(time_difference)
+```
 
-```{r task4,echo = TRUE, warning = FALSE, message = FALSE}
-## Import the downloaded csv 
-caro <- read_delim("caro60.csv",",")
-caro <- st_as_sf(caro, coords = c("E", "N"), crs = 2056, remove = FALSE)
+### `lead()` / `lag()`
 
-caro <- caro %>%
-mutate(
-    timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)),
-    Elag = as.numeric((E - lead(E))),
-    Nlag = as.numeric((N - lead(N))),
-    steplength = as.numeric(sqrt((Elag^2 + Nlag^2))),
-    speed = as.numeric((steplength/timelag))
+`lead()` and `lag()` return a vector of the same length as the input, just offset by a specific number of values (default is 1). Consider the following sequence:
+
+```{r}
+numbers <- 1:10
+
+numbers
+```
+
+We can now run `lead()` and `lag()` on this sequence to illustrate the output. `n =` specifies the offset, `default =` specifies the default value used to "fill" the emerging "empty spaces" of the vector. This helps us performing operations on subsequent values in a vector (or rows in a table).
+
+```{r}
+library("dplyr")
+
+lead(numbers)
+
+lead(numbers, n = 2)
+
+lag(numbers)
+
+lag(numbers, n = 5)
+
+lag(numbers, n = 5, default = 0)
+```
+
+### `mutate()`
+
+Using the above functions (`difftime()` and `lead()`), we can calculate the time lag, that is, the time difference between consecutive positions. We will try this on a dummy version of our wildboar dataset.
+
+```{r}
+wildschwein <- tibble(
+    TierID = c(rep("Hans", 5), rep("Klara", 5)),
+    DatetimeUTC = rep(as.POSIXct("2015-01-01 00:00:00", tz = "UTC") + 0:4 * 15 * 60, 2)
 )
 
-## Reducing the data
-c3 <- seq.int(from = 1, to = 200, by = 3)
-c6 <- seq.int(from = 1, to = 200, by = 6)
-c9 <- seq.int(from = 1, to = 200, by = 9)
+wildschwein
+```
 
-caro_3 <- caro %>% slice(c3)
-caro_6 <- caro %>% slice(c6)
-caro_9 <- caro %>% slice(c9)
 
-caro_3 <- caro_3 %>%
-mutate(
-    timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)),
-    Elag = as.numeric((E - lead(E))),
-    Nlag = as.numeric((N - lead(N))),
-    steplength = as.numeric(sqrt((Elag^2 + Nlag^2))),
-    speed = as.numeric((steplength/timelag))
-)
+To calculate the `timelag` with base-R, we need to mention `wildschwein` three times 
 
-caro_6 <- caro_6 %>%
-mutate(
-    timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)),
-    Elag = as.numeric((E - lead(E))),
-    Nlag = as.numeric((N - lead(N))),
-    steplength = as.numeric(sqrt((Elag^2 + Nlag^2))),
-    speed = as.numeric((steplength/timelag))
-)
+```{r}
+wildschwein$timelag <- as.numeric(difftime(lead(wildschwein$DatetimeUTC), wildschwein$DatetimeUTC))
+```
 
-caro_9 <- caro_9 %>%
-mutate(
-    timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)),
-    Elag = as.numeric((E - lead(E))),
-    Nlag = as.numeric((N - lead(N))),
-    steplength = as.numeric(sqrt((Elag^2 + Nlag^2))),
-    speed = as.numeric((steplength/timelag))
-)
+Using `mutate()` we can simplify this operation slightly:
 
-c3plot <- ggplot()+
-  geom_path(
-    data = caro_3,
-    aes(x = E, y = N),
-    color = 'blue'
-    ) + 
-  geom_path(
-    data = caro,
-    aes(x = E, y = N),
-    color = 'red'
-)
-c6plot <- ggplot()+
-  geom_path(
-    data = caro_6,
-    aes(x = E, y = N),
-    color = 'grey'
-    ) + 
-  geom_path(
-    data = caro,
-    aes(x = E, y = N),
-    color = 'red'
-)
-c9plot <- ggplot()+
-  geom_path(
-    data = caro_9,
-    aes(x = E, y = N),
-    color = 'green'
-    ) + 
-  geom_path(
-    data = caro,
-    aes(x = E, y = N),
-    color = 'red'
-)
-c3plot
-c6plot
-c9plot
+```{r}
+wildschwein <- mutate(wildschwein, timelag = as.numeric(difftime(lead(DatetimeUTC), DatetimeUTC)))
 
-speed_plot <- ggplot()+
-  geom_line(
-    data = caro,
-    aes(x = DatetimeUTC, y = speed),
-    color = 'red'
-    ) + 
-  geom_line(
-    data = caro_3,
-    aes(x = DatetimeUTC, y = speed),
-    color = 'blue'
-    ) +
-  geom_line(
-    data = caro_6,
-    aes(x = DatetimeUTC, y = speed),
-    color = 'lightblue'
-    ) +
-  geom_line(
-    data = caro_9,
-    aes(x = DatetimeUTC, y = speed),
-    color = 'khaki'
+wildschwein
+```
+
+### `group_by()`
+
+You might have noticed that `timelag` is calculated across different individuals (`Hans` and `Klara`), which does not make much sense. 
+To avoid this, we need to specify that `timelag` should just be calculated between consecutive rows *of the same individual*. We can implement this by using `group_by()`. 
+
+```{r}
+wildschwein <- group_by(wildschwein, TierID)
+```
+
+After adding this grouping variable, calculating the `timelag` automatically accounts for the individual trajectories.
+
+```{r}
+wildschwein <- mutate(wildschwein, timelag = as.numeric(difftime(lead(DatetimeUTC), DatetimeUTC)))
+
+wildschwein
+```
+
+### `summarise()`
+
+If we want to summarise our data and get metrics *per animal*, we can use the `dplyr` function `summarise()`. In contrast to `mutate()`, which just adds a new column to the dataset, `summarise()` "collapses" the data to one row per individual (specified by `group_by`).
+
+```{r}
+summarise(wildschwein, mean = mean(timelag, na.rm = T))
+```
+
+Note: You can do `mutate()` and `summarise()` on `sf` objects as well. However, `summarise()` tries to coerce all geometries into one object, which can take along time. To avoid this, use `st_drop_geometry()` before using `summarise()`. 
+
+### Piping 
+
+The code above may be a bit hard to read, since it has so many nested functions which need to be read from the inside out. In order to make code readable in a more human-friendly way, we can use the piping command `|>` from `magrittr`, which is included in `dplyr` and the `tidyverse`. The above code then looks like this:
+
+```{r}
+wildschwein |> # Take wildschwein...
+    group_by(TierID) |> # ...group it by TierID
+    summarise( # Summarise the data...
+        mean_timelag = mean(timelag, na.rm = T) # ...by calculating the mean timelag
     )
-speed_plot
-
 ```
 
-## Tasks5 Tolling window functions
-```{r task5,echo = TRUE, warning = FALSE, message = FALSE}
-library(zoo)
-window3 <- rollmean(caro$speed, k = 3, fill = NA, align = "left")
-window4 <- rollmean(caro$speed, k = 4, fill = NA, align = "left")
-window5 <- rollmean(caro$speed, k = 5, fill = NA, align = "left")
-window6 <- rollmean(caro$speed, k = 6, fill = NA, align = "left")
-window7 <- rollmean(caro$speed, k = 7, fill = NA, align = "left")
-window8 <- rollmean(caro$speed, k = 8, fill = NA, align = "left")
+### Bring it all together...
 
+Here is the same approach with a different dataset:
 
-par(mfrow = c(2, 3))
-plot(window3)
-plot(window4)
-plot(window5)
-plot(window6)
-plot(window7)
-plot(window8)
+```{r}
+pigs <- tibble(
+    TierID = c(8001, 8003, 8004, 8005, 8800, 8820, 3000, 3001, 3002, 3003, 8330, 7222),
+    sex = c("M", "M", "M", "F", "M", "M", "F", "F", "M", "F", "M", "F"),
+    age = c("A", "A", "J", "A", "J", "J", "J", "A", "J", "J", "A", "A"),
+    weight = c(50.755, 43.409, 12.000, 16.787, 20.987, 25.765, 22.0122, 21.343, 12.532, 54.32, 11.027, 88.08)
+)
 
+pigs
+
+pigs |>
+    summarise(
+        mean_weight = mean(weight)
+    )
+
+pigs |>
+    group_by(sex) |>
+    summarise(
+        mean_weight = mean(weight)
+    )
+
+pigs |>
+    group_by(sex, age) |>
+    summarise(
+        mean_weight = mean(weight)
+    )
 ```
