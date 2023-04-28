@@ -1,0 +1,102 @@
+---
+title: "E2Task"
+author: 'Author: Yelu He'
+date: "2023-04-28"
+output: html_document
+---
+## Preparation
+```{r setup, echo = FALSE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(sf)
+library(readr)
+library(ggplot2)
+
+```
+
+
+## Task 1 import data
+```{r task1, echo = TRUE, warning = FALSE, message = FALSE}
+library(readr)
+library(sf)
+wildschwein_BE <- read_delim("wildschwein_BE_2056.csv", ",")
+
+wildschwein_BE <- st_as_sf(wildschwein_BE, coords = c("E", "N"), crs = 2056, remove = FALSE)
+```
+
+## Task 2 getting overview
+```{r task2, echo = TRUE, warning = FALSE, message = FALSE}
+library(dplyr)
+
+wildschwein_BE$timelag <- as.numeric(difftime(lead(wildschwein_BE$DatetimeUTC), wildschwein_BE$DatetimeUTC, units = "secs"))
+wildschwein_BE$timelagit <- as.integer(wildschwein_BE$timelag)
+
+## How many individuals were tracked?
+length(unique(wildschwein_BE$TierName))
+
+## For how long were the individual tracked? Are there gaps?
+wildschwein_BE <- mutate(wildschwein_BE,timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)))
+wildschwein_BE %>%
+  group_by(TierID, TierName, CollarID) %>%
+  summarise(         
+    mean_timelag = mean(timelag, na.rm = T),
+    total_timelag = sum(timelag, na.rm = T)
+  )
+
+## Were all individuals tracked concurrently or sequentially?
+ggplot(wildschwein_BE,aes(DatetimeUTC,TierID,colour = TierID)) + geom_point()
+## Date-Timelag plot
+tl1 <- ggplot(wildschwein_BE,aes(DatetimeUTC,timelag,colour = TierID)) + geom_line()
+tl1 +ylim(0,20000) + scale_x_datetime()
+
+## ggplot(wildschwein_BE, aes(DatetimeUTC,colour = TierID)) + geom_histogram()
+
+## Histogram plot of timelag
+tl0 <- ggplot(wildschwein_BE, aes(x=timelag_it)) + geom_histogram()
+tl0 + xlim(0,6000) + ylim(0,1500)
+
+## Histogram of timelag for different objects
+tl2 <- ggplot(wildschwein_BE, aes(x=timelag, colour=TierID)) +
+  geom_histogram(fill="white",alpha=0.5, position="identity")
+tl2 + xlim(0,15000) + ylim(0,15000)
+## What is the temporal sampling interval between the locations?
+
+
+
+
+```
+
+## Task 1
+```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
+
+
+```
+
+## Task 1
+```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
+
+
+```
+
+## Task 1
+```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
+
+
+```
+
+## Task 1
+```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
+
+
+```
+
+## Task 1
+```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
+
+
+```
+
+## Task 1
+```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
+
+
+```
