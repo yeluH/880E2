@@ -209,15 +209,14 @@ speed_plot
 
 ## Task 5: Deriving movement parameters II
 ```{r task5, echo = TRUE, warning = FALSE, message = FALSE}
-library(zoo)
+## Create rolling windows of different sizes
 window3 <- rollmean(caro$speed, k = 3, fill = NA, align = "left")
 window4 <- rollmean(caro$speed, k = 4, fill = NA, align = "left")
 window5 <- rollmean(caro$speed, k = 5, fill = NA, align = "left")
 window6 <- rollmean(caro$speed, k = 6, fill = NA, align = "left")
 window7 <- rollmean(caro$speed, k = 7, fill = NA, align = "left")
 window8 <- rollmean(caro$speed, k = 8, fill = NA, align = "left")
-
-
+### Plot the 6 windows together
 par(mfrow = c(2, 3))
 plot(window3)
 plot(window4)
@@ -225,20 +224,40 @@ plot(window5)
 plot(window6)
 plot(window7)
 plot(window8)
-
-
-
 ```
 
-## Task 6
-```{r task6, echo = TRUE, warning = FALSE, message = FALSE}
+
+## Task 6: Add my movement data to repository (Done)
 
 
-```
 
-## Task 7
+## Task 7: Explore my movement data
 ```{r task7, echo = TRUE, warning = FALSE, message = FALSE}
-
-
+## Load the data
+move0 <- read_delim("movementdata/yelu_dataset_01.csv", ";")
+## Use right coordinate system and preserve original E/N columns
+move0 <- st_as_sf(move0, coords = c("Longitude", "Latitude"), crs = 2056, remove = FALSE)
+## Check the dates recorded
+unique(move0$Date)
+## View the map of tracking records
+ggplot(move0, 
+       aes(x = move0$Longitude, 
+           y = move0$Latitude,
+           colour = move0$Date)) +
+  geom_point()
+## View the movement of tracking records on one day
+move0_0421 <- move0[move0$Date == '21.04.2023',]
+ggplot(move0_0421, 
+       aes(x = move0_0421$Longitude, 
+           y = move0_0421$Latitude)) +
+  geom_point() +
+  geom_path()
+## View the movement of tracking records on one day
+move0_0425 <- move0[move0$Date == '25.04.2023',]
+ggplot(move0_0425, 
+       aes(x = move0_0425$Longitude, 
+           y = move0_0425$Latitude)) +
+  geom_point() +
+  geom_path()
 ```
 
