@@ -1,34 +1,39 @@
 ---
 title: "E2Task"
 author: 'Author: Yelu He'
-date: "2023-04-28"
+date: "2023-05-02"
 output: html_document
 ---
 ## Preparation
 ```{r setup, echo = FALSE, warning=FALSE, message=FALSE}
-library(dplyr)
-library(sf)
+## Prepare the library for further use
 library(readr)
+library(dplyr)
 library(ggplot2)
-
+library(sf)
+library(terra)
+library(lubridate)
+library(zoo)
 ```
 
 
-## Task 1 import data
+## Task 1: Import data
 ```{r task1, echo = TRUE, warning = FALSE, message = FALSE}
-library(readr)
-library(sf)
+## Load the data
 wildschwein_BE <- read_delim("wildschwein_BE_2056.csv", ",")
 
+## Use right coordinate system and preserve original E/N columns
 wildschwein_BE <- st_as_sf(wildschwein_BE, coords = c("E", "N"), crs = 2056, remove = FALSE)
 ```
 
-## Task 2 getting overview
+## Task 2: Getting overview
 ```{r task2, echo = TRUE, warning = FALSE, message = FALSE}
-library(dplyr)
-
+## Calculate time difference and convert output into an integer and store it.
 wildschwein_BE$timelag <- as.numeric(difftime(lead(wildschwein_BE$DatetimeUTC), wildschwein_BE$DatetimeUTC, units = "secs"))
 wildschwein_BE$timelagit <- as.integer(wildschwein_BE$timelag)
+
+## View the map of tracking records
+ggplot(wildschwein_BE, aes(x = wildschwein_BE$E, y = wildschwein_BE$N,colour = TierID)) + geom_point()
 
 ## How many individuals were tracked?
 length(unique(wildschwein_BE$TierName))
@@ -44,59 +49,196 @@ wildschwein_BE %>%
 
 ## Were all individuals tracked concurrently or sequentially?
 ggplot(wildschwein_BE,aes(DatetimeUTC,TierID,colour = TierID)) + geom_point()
-## Date-Timelag plot
+### Date-Timelag plot
 tl1 <- ggplot(wildschwein_BE,aes(DatetimeUTC,timelag,colour = TierID)) + geom_line()
 tl1 +ylim(0,20000) + scale_x_datetime()
+### Based on the plot, they were not tracked concurrently or sequentially. 002A was tracked before 016A and 018A, but some tracking records of 016A and 018A overlap with each other.
 
-## ggplot(wildschwein_BE, aes(DatetimeUTC,colour = TierID)) + geom_histogram()
-
-## Histogram plot of timelag
-tl0 <- ggplot(wildschwein_BE, aes(x=timelag_it)) + geom_histogram()
+## What is the temporal sampling interval between the locations?
+### Histogram plot of timelag
+tl0 <- ggplot(wildschwein_BE, aes(x=timelagit)) + geom_histogram()
 tl0 + xlim(0,6000) + ylim(0,1500)
-
-## Histogram of timelag for different objects
+### Histogram of timelag for different objects
 tl2 <- ggplot(wildschwein_BE, aes(x=timelag, colour=TierID)) +
   geom_histogram(fill="white",alpha=0.5, position="identity")
 tl2 + xlim(0,15000) + ylim(0,15000)
-## What is the temporal sampling interval between the locations?
 
+```
+
+## Task 3: Deriving movement parameters I 
+```{r task3, echo = TRUE, warning = FALSE, message = FALSE}
+## Calculate the animal's step length based on the Euclidean distance, and then the speed based on the step length and time lag
+wildschwein_BE <- wildschwein_BE %>%
+  mutate(Elag = as.numeric((E - lead(E))),
+         Nlag = as.numeric((N - lead(N))),
+         steplength = as.numeric(sqrt((Elag^2 + Nlag^2))),
+         speed = as.numeric((steplength/timelag))
+  )
+### Basic statistics of speed
+summary(wildschwein_BE$speed)
+### Plot the speed-time by individuals
+speed0 <- ggplot(wildschwein_BE,aes(DatetimeUTC,speed,colour = TierID)) + geom_line()
+speed0 +ylim(0,1.5) + scale_x_datetime()
+
+```
+
+## Task 4: Cross-scale movement analysis
+```{r task4, echo = TRUE, warning = FALSE, message = FALSE}
+## Import the downloaded csv and save it as caro
+caro <- read_delim("caro60.csv",",")
+caro <- st_as_sf(caro, coords = c("E", "N"), crs = 2056, remove = FALSE)
+
+## Manually reduce granularity of sampling interval by selecting every 3rd, 6th and 9th position
+### Calculate time lag, step length and speed
+caro <- caro %>%
+mutate(
+    timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)), 
+    # Notice the unit is 1 minute
+    Elag = as.numeric((E - lead(E))),
+    Nlag = as.numeric((N - lead(N))),
+    steplength = as.numeric(sqrt((Elag^2 + Nlag^2))),
+    speed = as.numeric((steplength/timelag))
+)
+### Reducing the data
+c3 <- seq.int(from = 1, to = 200, by = 3)
+c6 <- seq.int(from = 1, to = 200, by = 6)
+c9 <- seq.int(from = 1, to = 200, by = 9)
+caro_3 <- caro %>% slice(c3)
+caro_6 <- caro %>% slice(c6)
+caro_9 <- caro %>% slice(c9)
+### Check the number of rows
+nrow(caro)
+nrow(caro_3)
+nrow(caro_6)
+nrow(caro_9)
+### Calculate time lag, step length and speed
+caro_3 <- caro_3 %>%
+  mutate(
+    timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)),
+    Elag = as.numeric((E - lead(E))),
+    Nlag = as.numeric((N - lead(N))),
+    steplength = as.numeric(sqrt((Elag^2 + Nlag^2))),
+    speed = as.numeric((steplength/timelag))
+)
+caro_6 <- caro_6 %>%
+  mutate(
+    timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)),
+    Elag = as.numeric((E - lead(E))),
+    Nlag = as.numeric((N - lead(N))),
+    steplength = as.numeric(sqrt((Elag^2 + Nlag^2))),
+    speed = as.numeric((steplength/timelag))
+)
+caro_9 <- caro_9 %>%
+  mutate(
+    timelag = as.numeric(difftime(lead(DatetimeUTC),DatetimeUTC)),
+    Elag = as.numeric((E - lead(E))),
+    Nlag = as.numeric((N - lead(N))),
+    steplength = as.numeric(sqrt((Elag^2 + Nlag^2))),
+    speed = as.numeric((steplength/timelag))
+)
+### Plot the paths of the three trajectories
+c3plot <- ggplot()+
+  geom_path(
+    data = caro_3, aes(x = E, y = N),
+    color = 'coral') + 
+  geom_path(
+    data = caro, aes(x = E, y = N),
+    color = 'black', alpha = 0.5) +
+  geom_point(
+    data = caro, aes(x = E, y = N),
+    color = 'black', size = 1.5, alpha = 0.5) +
+  geom_point(
+    data = caro_3, aes(x = E, y = N),
+    color = 'coral', size = 1.5)
+c6plot <- ggplot()+
+  geom_path(
+    data = caro_6, aes(x = E, y = N),
+    color = 'lightskyblue'
+    ) + 
+  geom_path(
+    data = caro, aes(x = E, y = N),
+    color = 'black', alpha = 0.5) +
+  geom_point(
+    data = caro, aes(x = E, y = N),
+    color = 'black', size = 1.5, alpha = 0.5) +
+  geom_point(
+    data = caro_6, aes(x = E, y = N),
+    color = 'lightskyblue', size = 1.5)
+c9plot <- ggplot()+
+  geom_path(
+    data = caro_9, aes(x = E, y = N),
+    color = 'green3'
+    ) + 
+  geom_path(
+    data = caro, aes(x = E, y = N),
+    color = 'black', alpha = 0.5) +
+  geom_point(
+    data = caro, aes(x = E, y = N),
+    color = 'black', size = 1.5, alpha = 0.5) +
+  geom_point(
+    data = caro_9, aes(x = E, y = N),
+    color = 'green3', size = 1.5)
+c3plot
+c6plot
+c9plot
+### Plot the speed of the three trajectories
+speed_plot <- ggplot()+
+  geom_line(
+    data = caro,
+    aes(x = DatetimeUTC, y = speed),
+    color = 'black', alpha = 0.5
+    ) + 
+  geom_line(
+    data = caro_3,
+    aes(x = DatetimeUTC, y = speed),
+    color = 'coral'
+    ) +
+  geom_line(
+    data = caro_6,
+    aes(x = DatetimeUTC, y = speed),
+    color = 'lightskyblue'
+    ) +
+  geom_line(
+    data = caro_9,
+    aes(x = DatetimeUTC, y = speed),
+    color = 'green3'
+    )
+speed_plot
+
+```
+
+## Task 5: Deriving movement parameters II
+```{r task5, echo = TRUE, warning = FALSE, message = FALSE}
+library(zoo)
+window3 <- rollmean(caro$speed, k = 3, fill = NA, align = "left")
+window4 <- rollmean(caro$speed, k = 4, fill = NA, align = "left")
+window5 <- rollmean(caro$speed, k = 5, fill = NA, align = "left")
+window6 <- rollmean(caro$speed, k = 6, fill = NA, align = "left")
+window7 <- rollmean(caro$speed, k = 7, fill = NA, align = "left")
+window8 <- rollmean(caro$speed, k = 8, fill = NA, align = "left")
+
+
+par(mfrow = c(2, 3))
+plot(window3)
+plot(window4)
+plot(window5)
+plot(window6)
+plot(window7)
+plot(window8)
 
 
 
 ```
 
-## Task 1
-```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
+## Task 6
+```{r task6, echo = TRUE, warning = FALSE, message = FALSE}
 
 
 ```
 
-## Task 1
-```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
+## Task 7
+```{r task7, echo = TRUE, warning = FALSE, message = FALSE}
 
 
 ```
 
-## Task 1
-```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
-
-
-```
-
-## Task 1
-```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
-
-
-```
-
-## Task 1
-```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
-
-
-```
-
-## Task 1
-```{r taska, echo = TRUE, warning = FALSE, message = FALSE}
-
-
-```
